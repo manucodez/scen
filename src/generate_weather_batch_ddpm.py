@@ -9,13 +9,16 @@ from torch.utils.data import DataLoader, TensorDataset
 from sklearn.preprocessing import StandardScaler
 
 # ==== Configuration ====
-BASE_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "data"))
-TXT_INPUT = os.path.join(BASE_PATH, "S202503121615332398500.txt")
-YAML_OUTPUT = os.path.join(BASE_PATH, "weather_batch.yaml")
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DATA_DIR = os.path.join(BASE_DIR, "data")
+TXT_INPUT = os.path.join(DATA_DIR, "weather.txt")
+YAML_OUTPUT = os.path.join(DATA_DIR, "weather_batch.yaml")
 
 # ==== Step 1. Load and clean data ====
 print("📂 Reading text file:", TXT_INPUT)
 raw_df = pd.read_csv(TXT_INPUT, sep=r"\s+", encoding="utf-8")
+raw_df.columns = raw_df.columns.str.strip()
+raw_df.rename(columns={"TEM": "TMP"}, inplace=True)
 
 # Convert wind direction angle to sin/cos
 raw_df["WIN_D_Avg_2mi_sin"] = np.sin(np.deg2rad(raw_df["WIN_D_Avg_2mi"]))
@@ -38,7 +41,7 @@ print(raw_df[features].head())
 # ==== Step 2. Standardization ====
 scaler = StandardScaler()
 X_scaled = scaler.fit_transform(X)
-joblib_path = os.path.join(BASE_PATH, "scaler_other.pkl")
+joblib_path = os.path.join(DATA_DIR, "scaler_other.pkl")
 
 import joblib
 joblib.dump(scaler, joblib_path)
@@ -118,7 +121,9 @@ def sample_ddpm(model, num_samples):
     return x
 
 print("🎨 Generating new samples...")
-samples = sample_ddpm(model, num_samples=100).numpy()
+model.eval()
+with torch.no_grad():
+    samples = sample_ddpm(model, num_samples=100).cpu().numpy()
 samples_inv = scaler.inverse_transform(samples)
 
 # ==== Step 6. Map to weather parameters ====
